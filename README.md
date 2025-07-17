@@ -4,7 +4,7 @@ This repository is a clone of the [patrickloeber/snake-ai-pytorch](https://githu
 
 ## Objective
 
-The main objective of this fork is to experiment with and improve the AI logic for the Snake game. As discussed in the freeCodeCamp video, the current AI agent can only progress so far before plateauing in performance. The video challenges viewers to try and enhance the agent's intelligence so it can achieve higher scores and survive longer.
+The main objective of this clone is to experiment with and improve the AI logic for the Snake game. As discussed in the freeCodeCamp video, the current AI agent can only progress so far before plateauing in performance. The video challenges viewers to try and enhance the agent's intelligence so it can achieve higher scores and survive longer.
 
 I have cloned this repository specifically to:
 - Understand the existing AI logic and its limitations
