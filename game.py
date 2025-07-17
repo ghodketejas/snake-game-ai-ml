@@ -28,13 +28,13 @@ BLUE2 = (0, 100, 255)
 BLACK = (0,0,0)
 
 BLOCK_SIZE = 20  # Size of each block (snake segment, food)
-SPEED = 40       # Game speed (frames per second)
+SPEED = 100     # Game speed (frames per second, benchmark value)
 
 class SnakeGameAI:
     """
     Main class to handle the Snake game logic for AI training.
     """
-    def __init__(self, w=1080, h=800):
+    def __init__(self, w=750, h=750):
         self.w = w
         self.h = h
         # Initialize display window
@@ -47,8 +47,11 @@ class SnakeGameAI:
         # Initialize game state
         self.direction = Direction.RIGHT
 
-        # Start snake in the center, moving right
-        self.head = Point(self.w/2, self.h/2)
+        # Start snake in the center, moving right, aligned to grid
+        self.head = Point(
+            (self.w // BLOCK_SIZE // 2) * BLOCK_SIZE,
+            (self.h // BLOCK_SIZE // 2) * BLOCK_SIZE
+        )
         self.snake = [self.head,
                       Point(self.head.x-BLOCK_SIZE, self.head.y),
                       Point(self.head.x-(2*BLOCK_SIZE), self.head.y)]
@@ -60,8 +63,10 @@ class SnakeGameAI:
 
     def _place_food(self):
         # Randomly place food on the grid, not on the snake
-        x = random.randint(0, (self.w-BLOCK_SIZE )//BLOCK_SIZE )*BLOCK_SIZE
-        y = random.randint(0, (self.h-BLOCK_SIZE )//BLOCK_SIZE )*BLOCK_SIZE
+        x = random.randint(0, (self.w-BLOCK_SIZE)//BLOCK_SIZE)*BLOCK_SIZE
+        y = random.randint(0, (self.h-BLOCK_SIZE)//BLOCK_SIZE)*BLOCK_SIZE
+        x = int(x)
+        y = int(y)
         self.food = Point(x, y)
         if self.food in self.snake:
             self._place_food()  # Retry if food is on the snake
@@ -128,7 +133,8 @@ class SnakeGameAI:
             pygame.draw.rect(self.display, BLUE2, pygame.Rect(pt.x+4, pt.y+4, 12, 12))
 
         # Draw food
-        pygame.draw.rect(self.display, RED, pygame.Rect(self.food.x, self.food.y, BLOCK_SIZE, BLOCK_SIZE))
+        if self.food is not None:
+            pygame.draw.rect(self.display, RED, pygame.Rect(self.food.x, self.food.y, BLOCK_SIZE, BLOCK_SIZE))
 
         # Draw score
         text = font.render("Score: " + str(self.score), True, WHITE)

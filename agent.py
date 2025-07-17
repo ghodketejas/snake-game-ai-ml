@@ -5,10 +5,26 @@ from collections import deque
 from game import SnakeGameAI, Direction, Point
 from model import Linear_QNet, QTrainer
 from helper import plot
+import multiprocessing as mp
+import subprocess
+import os
+import re
 
 MAX_MEMORY = 100_000
 BATCH_SIZE = 1000
 LR = 0.001
+
+def get_next_model_name():
+    model_dir = 'model'
+    if not os.path.exists(model_dir):
+        os.makedirs(model_dir)
+    existing = [f for f in os.listdir(model_dir) if os.path.isfile(os.path.join(model_dir, f))]
+    nums = [int(re.findall(r'model(\d+)\.pth', f)[0]) for f in existing if re.match(r'model\d+\.pth', f)]
+    next_num = max(nums) + 1 if nums else 1
+    model_name = f"model{next_num}"
+    plot_path = os.path.join('results', f"{model_name}_plot.png")
+    model_save_path = os.path.join(model_dir, f"{model_name}.pth")
+    return model_name, plot_path, model_save_path
 
 class Agent:
 
@@ -106,42 +122,57 @@ def train():
     total_score = 0
     record = 0
     agent = Agent()
-    game = SnakeGameAI()
-    while True:
-        # get old state
-        state_old = agent.get_state(game)
+    game = SnakeGameAI(w=750, h=750)
 
-        # get move
-        final_move = agent.get_action(state_old)
+    # Get unique model name, plot path, and model save path
+    model_name, plot_path, model_save_path = get_next_model_name()
 
-        # perform move and get new state
-        reward, done, score = game.play_step(final_move)
-        state_new = agent.get_state(game)
+    # Start plotting process, pass plot_path
+    queue = mp.Queue()
+    import plot_process
+    plotter = mp.Process(target=plot_process.plot_listener, args=(queue, plot_path))
+    plotter.start()
 
-        # train short memory
-        agent.train_short_memory(state_old, final_move, reward, state_new, done)
+    MAX_GAMES = 100
+    try:
+        while agent.n_games < MAX_GAMES:
+            # get old state
+            state_old = agent.get_state(game)
 
-        # remember
-        agent.remember(state_old, final_move, reward, state_new, done)
+            # get move
+            final_move = agent.get_action(state_old)
 
-        if done:
-            # train long memory, plot result
-            game.reset()
-            agent.n_games += 1
-            agent.train_long_memory()
+            # perform move and get new state
+            reward, done, score = game.play_step(final_move)
+            state_new = agent.get_state(game)
 
-            if score > record:
-                record = score
-                agent.model.save()
+            # train short memory
+            agent.train_short_memory(state_old, final_move, reward, state_new, done)
 
-            print('Game', agent.n_games, 'Score', score, 'Record:', record)
+            # remember
+            agent.remember(state_old, final_move, reward, state_new, done)
 
-            plot_scores.append(score)
-            total_score += score
-            mean_score = total_score / agent.n_games
-            plot_mean_scores.append(mean_score)
-            plot(plot_scores, plot_mean_scores)
+            if done:
+                # train long memory, plot result
+                game.reset()
+                agent.n_games += 1
+                agent.train_long_memory()
 
+                if score > record:
+                    record = score
+                    agent.model.save(model_save_path)
+
+                print('Game', agent.n_games, 'Score', score, 'Record:', record)
+
+                plot_scores.append(score)
+                total_score += score
+                mean_score = total_score / agent.n_games
+                plot_mean_scores.append(mean_score)
+                # Send data to plotting process
+                queue.put((plot_scores.copy(), plot_mean_scores.copy()))
+    finally:
+        queue.put('DONE')
+        plotter.join()
 
 if __name__ == '__main__':
     train()
