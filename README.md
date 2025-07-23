@@ -10,12 +10,16 @@ The main objective of this clone is to experiment with and improve the AI logic 
 
 - **Fresh Model Per Run:**  
   Every time you run `agent.py`, a new model is trained from scratch and saved as `model/modelX.pth` (where X is an incrementing number).
+- **Manual Debugging Mode:**  
+  When you start training, you can choose between 'Train' (fastest, no chart window, only saves final plot) and 'Debug' (shows a live chart window, slows down the game for observation). In debug mode, models and plots are saved as `debug_modelX.pth` and `debug_modelX_plot.png` to clearly distinguish them from standard runs.
 - **Result Plotting:**  
-  After each training session, a plot of the training progress (scores and mean scores) is saved as `results/modelX_plot.png`, matching the model number.
+  After each training session, a plot of the training progress (scores and mean scores) is saved as `results/modelX_plot.png` or `results/debug_modelX_plot.png`, matching the model number and mode.
 - **Multiprocessing Plotting:**  
-  The training progress plot updates in real time in a separate window, allowing you to interact with both the game and the plot without crashes.
+  The training progress plot updates in real time in a separate window (in debug mode), allowing you to interact with both the game and the plot without crashes. The chart window stays on top in debug mode for easy monitoring.
 - **Grid-Aligned Snake and Food:**  
   The snake's head and food are always aligned to the grid, ensuring correct collision and scoring behavior.
+- **Fixed Board Size for Benchmarking:**  
+  The game board size is now always 750x750 for all training runs, ensuring consistent benchmarking and reproducibility.
 - **Bug Fixes & Robustness:**  
   - All positions are integers to avoid rendering issues.
   - Model saving and directory creation are robust and error-free.
@@ -39,9 +43,11 @@ The main objective of this clone is to experiment with and improve the AI logic 
 
 1. **Train a New Model**
    - Run `python agent.py`
-   - A new model will be trained from scratch and saved as `model/modelX.pth`
-   - The training progress plot will be saved as `results/modelX_plot.png`
-   - The plot window updates in real time and can be moved/resized independently
+   - You will be prompted to select 'Debug' or 'Train' mode:
+     - **Debug:** Shows a live chart window, slows down the game for observation, and saves models/plots as `debug_modelX.pth` and `debug_modelX_plot.png`.
+     - **Train:** Runs as fast as possible, no chart window, only saves the final plot and model as `modelX.pth` and `modelX_plot.png`.
+   - The chart window in debug mode stays on top for easy monitoring and updates in real time.
+   - The board size is always 750x750 for all training runs.
 
 2. **Play as a Human**
    - Run `python snake_game_human.py`
@@ -49,6 +55,7 @@ The main objective of this clone is to experiment with and improve the AI logic 
 3. **Review Results**
    - All trained models are in the `model/` folder
    - All training plots are in the `results/` folder
+   - Debug runs are clearly marked with the `debug_` prefix in their filenames
 
 ## Credits
 
@@ -65,8 +72,8 @@ Feel free to fork and contribute!
 
 **Benchmark Settings:**
 - Speed: 100
-- Width: 750
-- Height: 750
+- Width: 750 (now fixed for all training runs)
+- Height: 750 (now fixed for all training runs)
 - Max Games: 100
 - MAX_MEMORY: 100,000
 - BATCH_SIZE: 1,000
@@ -101,4 +108,4 @@ Feel free to fork and contribute!
 
 ### Note on Plot Titles
 
-The saved plots currently show the title as "training" or are missing a proper title. This is due to the code in `plot_process.py` using `ax.set_title('Training...')` or similar. To customize the plot title, I will update the plotting code to set a more descriptive title, such as `"Training Progress for Run X"`. 
+The saved plots now show the model name (e.g., `model1_plot` or `debug_model1_plot`) as the chart title, making it easy to identify which run the plot belongs to. 

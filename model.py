@@ -5,13 +5,19 @@ import torch.nn.functional as F
 import os
 import numpy as np
 
+# Add device selection
+DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 class Linear_QNet(nn.Module):
-    def __init__(self, input_size, hidden_size, output_size):
+    def __init__(self, input_size, hidden_size, output_size, device=DEVICE):
         super().__init__()
         self.linear1 = nn.Linear(input_size, hidden_size)
         self.linear2 = nn.Linear(hidden_size, output_size)
+        self.device = device
+        self.to(self.device)
 
     def forward(self, x):
+        x = x.to(self.device)
         x = F.relu(self.linear1(x))
         x = self.linear2(x)
         return x
@@ -21,18 +27,19 @@ class Linear_QNet(nn.Module):
 
 
 class QTrainer:
-    def __init__(self, model, lr, gamma):
+    def __init__(self, model, lr, gamma, device=DEVICE):
         self.lr = lr
         self.gamma = gamma
         self.model = model
+        self.device = device
         self.optimizer = optim.Adam(model.parameters(), lr=self.lr)
         self.criterion = nn.MSELoss()
 
     def train_step(self, state, action, reward, next_state, done):
-        state = torch.tensor(np.array(state), dtype=torch.float)
-        next_state = torch.tensor(np.array(next_state), dtype=torch.float)
-        action = torch.tensor(action, dtype=torch.long)
-        reward = torch.tensor(reward, dtype=torch.float)
+        state = torch.tensor(np.array(state), dtype=torch.float, device=self.device)
+        next_state = torch.tensor(np.array(next_state), dtype=torch.float, device=self.device)
+        action = torch.tensor(action, dtype=torch.long, device=self.device)
+        reward = torch.tensor(reward, dtype=torch.float, device=self.device)
         # (n, x)
 
         if len(state.shape) == 1:
@@ -46,7 +53,7 @@ class QTrainer:
         # 1: predicted Q values with current state
         pred = self.model(state)
 
-        target = pred.clone()
+        target = pred.clone().detach()
         for idx in range(len(done)):
             Q_new = reward[idx]
             if not done[idx]:
@@ -54,13 +61,9 @@ class QTrainer:
 
             target[idx][torch.argmax(action[idx]).item()] = Q_new
     
-        # 2: Q_new = r + y * max(next_predicted Q value) -> only do this if not done
-        # pred.clone()
-        # preds[argmax(action)] = Q_new
         self.optimizer.zero_grad()
         loss = self.criterion(target, pred)
         loss.backward()
-
         self.optimizer.step()
 
 

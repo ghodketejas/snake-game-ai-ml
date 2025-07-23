@@ -3,6 +3,7 @@ import random
 from enum import Enum
 from collections import namedtuple
 import numpy as np
+import time
 
 # Initialize pygame modules
 pygame.init()
@@ -29,14 +30,17 @@ BLACK = (0,0,0)
 
 BLOCK_SIZE = 20  # Size of each block (snake segment, food)
 SPEED = 100     # Game speed (frames per second, benchmark value)
+BOARD_WIDTH = 750
+BOARD_HEIGHT = 750
 
 class SnakeGameAI:
     """
     Main class to handle the Snake game logic for AI training.
     """
-    def __init__(self, w=750, h=750):
-        self.w = w
-        self.h = h
+    def __init__(self, delay_per_move=0):
+        self.w = BOARD_WIDTH
+        self.h = BOARD_HEIGHT
+        self.delay_per_move = delay_per_move
         # Initialize display window
         self.display = pygame.display.set_mode((self.w, self.h))
         pygame.display.set_caption('Snake')
@@ -106,6 +110,8 @@ class SnakeGameAI:
         # 5. Update UI and control game speed
         self._update_ui()
         self.clock.tick(SPEED)
+        if self.delay_per_move > 0:
+            time.sleep(self.delay_per_move)
         # 6. Return game state
         return reward, game_over, self.score
 
