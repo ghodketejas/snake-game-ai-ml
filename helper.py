@@ -1,3 +1,7 @@
+"""
+helper.py
+Utility functions for plotting, device management, and user interaction in Snake Game AI.
+"""
 import matplotlib.pyplot as plt
 import sys
 import tkinter as tk
@@ -5,26 +9,37 @@ from tkinter import simpledialog, messagebox
 import os
 import re
 
-plt.ion()
 
-def plot(scores, mean_scores):
+def plot(scores, mean_scores, model_name=None, show_window=True):
     """
     Plot the training scores and mean scores in real time.
+    If show_window is False, do not show the plot window (for automated mode).
+    model_name: used for the plot title.
     """
+    import matplotlib.pyplot as plt
     plt.clf()
-    plt.title('Training...')
+    if model_name:
+        if show_window:
+            plt.title(f'{model_name} training...')
+        else:
+            plt.title(f'{model_name}')
+    else:
+        plt.title('Training...')
     plt.xlabel('Number of Games')
     plt.ylabel('Score')
     plt.plot(scores)
     plt.plot(mean_scores)
     plt.ylim(ymin=0)
-    plt.text(len(scores)-1, scores[-1], str(scores[-1]))
-    plt.text(len(mean_scores)-1, mean_scores[-1], str(mean_scores[-1]))
-    plt.draw()
-    try:
-        plt.pause(0.001)
-    except Exception:
-        pass
+    if scores:
+        plt.text(len(scores)-1, scores[-1], str(scores[-1]))
+    if mean_scores:
+        plt.text(len(mean_scores)-1, mean_scores[-1], str(mean_scores[-1]))
+    if show_window:
+        plt.draw()
+        try:
+            plt.pause(0.001)
+        except Exception:
+            pass
 
 def ask_visual_debug():
     """
@@ -116,9 +131,16 @@ def ask_visual_debug():
     root.mainloop()
     return result['choice'], result['num_games'], result['speed']
 
-def get_next_save_paths(prefix='model'):
+def ask_visual_debug_auto(visual_debug, num_games, speed):
+    """
+    Automated version of ask_visual_debug for CI/benchmarking. Returns the same tuple as ask_visual_debug.
+    """
+    return visual_debug, num_games, speed
+
+def get_next_save_paths(prefix='model', custom_name=None):
     """
     Generate unique file paths for saving model, plot, and CSV results.
+    If custom_name is provided, use it as the prefix for the files.
     Returns: (model_name, plot_path, model_save_path, csv_path)
     """
     model_dir = 'model'
@@ -128,11 +150,15 @@ def get_next_save_paths(prefix='model'):
     for d in [model_dir, results_dir, plots_dir, csv_dir]:
         if not os.path.exists(d):
             os.makedirs(d)
-    existing = [f for f in os.listdir(model_dir) if os.path.isfile(os.path.join(model_dir, f))]
-    pattern = re.compile(rf'{re.escape(prefix)}(\d+)\.pth')
-    nums = [int(pattern.findall(f)[0]) for f in existing if pattern.match(f)]
-    next_num = max(nums) + 1 if nums else 1
-    model_name = f"{prefix}{next_num}"
+    if custom_name:
+        model_name = custom_name
+    else:
+        existing = [f for f in os.listdir(model_dir) if os.path.isfile(os.path.join(model_dir, f))]
+        import re
+        pattern = re.compile(rf'{re.escape(prefix)}(\d+)\.pth')
+        nums = [int(pattern.findall(f)[0]) for f in existing if pattern.match(f)]
+        next_num = max(nums) + 1 if nums else 1
+        model_name = f"{prefix}{next_num}"
     plot_path = os.path.join(plots_dir, f"{model_name}_plot.png")
     model_save_path = os.path.join(model_dir, f"{model_name}.pth")
     csv_path = os.path.join(csv_dir, f"{model_name}.csv")

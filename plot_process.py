@@ -1,3 +1,7 @@
+"""
+plot_process.py
+Handles multiprocessing-based real-time plotting for Snake Game AI training.
+"""
 import matplotlib.pyplot as plt
 import multiprocessing as mp
 import os

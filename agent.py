@@ -4,7 +4,7 @@ import numpy as np
 from collections import deque
 from game import SnakeGameAI, Direction, Point
 from model import Linear_QNet, QTrainer
-from helper import plot, ask_visual_debug, get_next_save_paths, get_device, print_device_info, write_training_csv
+from helper import plot, ask_visual_debug, get_next_save_paths, get_device, print_device_info, write_training_csv, ask_visual_debug_auto
 import multiprocessing as mp
 import os
 
@@ -112,9 +112,13 @@ class Agent:
             final_move[move] = 1
         return final_move
 
-def train():
+def train(visual_debug=None, num_games=None, speed=None, custom_name=None):
+    import pygame
+    pygame.init()
     """
     Main training loop for the classic agent. Handles user input, training, and saving results.
+    If visual_debug, num_games, and speed are provided, runs in automated mode.
+    custom_name: if provided, used as the prefix for output files.
     """
     plot_scores = []
     plot_mean_scores = []
@@ -122,11 +126,15 @@ def train():
     record = 0
     device = get_device()
     agent = Agent(device=device)
-    model_name, plot_path, model_save_path, csv_path = get_next_save_paths('model')
-    visual_debug, num_games, speed = ask_visual_debug()
+    model_name, plot_path, model_save_path, csv_path = get_next_save_paths('model', custom_name=custom_name)
+    if visual_debug is False:
+        visual_debug, num_games, speed = ask_visual_debug_auto(visual_debug, num_games, speed)
+    elif visual_debug is not None and num_games is not None and speed is not None:
+        visual_debug, num_games, speed = ask_visual_debug_auto(visual_debug, num_games, speed)
+    else:
+        visual_debug, num_games, speed = ask_visual_debug()
     DELAY_PER_MOVE = 0.05 if visual_debug else 0
     game = SnakeGameAI(delay_per_move=DELAY_PER_MOVE)
-    game.clock.tick(speed)
     print_device_info(device)
     n_games = 0
     csv_rows = []
@@ -149,7 +157,6 @@ def train():
             agent.remember(state_old, final_move, reward, state_new, done)
             if done:
                 game.reset()
-                game.clock.tick(speed)
                 agent.n_games += 1
                 n_games += 1
                 agent.train_long_memory()
@@ -172,13 +179,17 @@ def train():
         if visual_debug and plotter is not None:
             plotter.join()
         else:
+            import matplotlib
+            matplotlib.use('Agg')
             import matplotlib.pyplot as plt
-            plot(plot_scores, plot_mean_scores)
-            plot_filename = os.path.basename(plot_path)
-            plt.title(plot_filename)
+            from helper import plot
+            plot(plot_scores, plot_mean_scores, model_name=model_name, show_window=False)
             plt.savefig(plot_path)
+            plt.close()
         write_training_csv(csv_path, model_name, csv_rows)
         print(f"Final model saved to {model_save_path}")
+        import pygame
+        pygame.display.quit()
 
 if __name__ == '__main__':
     train()

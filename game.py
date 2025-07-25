@@ -1,3 +1,7 @@
+"""
+game.py
+Core game logic for Snake Game AI (AI and environment).
+"""
 import pygame
 import random
 from enum import Enum
@@ -39,7 +43,7 @@ class SnakeGameAI:
         self.w = BOARD_WIDTH
         self.h = BOARD_HEIGHT
         self.delay_per_move = delay_per_move
-        self.display = pygame.display.set_mode((self.w, self.h))
+        self.display = pygame.display.set_mode((self.w, self.h), pygame.RESIZABLE)
         pygame.display.set_caption('Snake')
         self.clock = pygame.time.Clock()
         self.reset()

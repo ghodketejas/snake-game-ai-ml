@@ -55,15 +55,6 @@ The main objective of this clone is to experiment with and improve the AI logic 
 
 ## Benchmarking & Results
 
-**Benchmark Settings:**
-- Speed: 500
-- Width: 750 (fixed for all training runs)
-- Height: 750 (fixed for all training runs)
-- Max_Games: 100, 1000, until cap
-- MAX_MEMORY: 100,000
-- BATCH_SIZE: 1,000
-- LR: 0.001
-
 ### Test Results Template
 
 #### Patrick's model (agent.py):

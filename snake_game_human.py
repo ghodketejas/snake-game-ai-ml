@@ -1,3 +1,7 @@
+"""
+snake_game_human.py
+Human-playable version of Snake Game using Pygame.
+"""
 import pygame
 import random
 from enum import Enum
