@@ -19,13 +19,19 @@ BATCH_SIZE = 1000
 LR = 0.001
 
 class SmarterAgent:
+    """
+    Smarter DQN agent for Snake. Uses enhanced state, reward shaping, and a deeper neural network.
+    """
     def __init__(self, epsilon_start=1.0, epsilon_min=0.05, epsilon_decay=0.995, lr=LR * 0.5):
+        """
+        Initialize the smarter agent, deeper neural network, and experience replay memory.
+        """
         self.n_games = 0
         self.epsilon_start = epsilon_start
         self.epsilon_min = epsilon_min
         self.epsilon_decay = epsilon_decay
         self.epsilon = epsilon_start
-        self.gamma = 0.95
+        self.gamma = 0.95  # Higher discount for longer-term rewards
         self.memory = deque(maxlen=MAX_MEMORY)
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.model = DeeperQNet(21, [512, 256, 128], 3, device=self.device, dropout_rate=0.2)
@@ -34,6 +40,10 @@ class SmarterAgent:
         )
 
     def get_state(self, game):
+        """
+        Returns an enhanced state vector for the smarter agent.
+        Features include distances to walls/food, food alignment, snake length, and strategic features.
+        """
         head = game.snake[0]
         point_l = Point(head.x - 20, head.y)
         point_r = Point(head.x + 20, head.y)
@@ -59,6 +69,7 @@ class SmarterAgent:
         
         snake_length = len(game.snake)
         
+        # Danger detection
         danger_straight = (dir_r and game.is_collision(point_r)) or \
                          (dir_l and game.is_collision(point_l)) or \
                          (dir_u and game.is_collision(point_u)) or \
@@ -97,9 +108,15 @@ class SmarterAgent:
         return np.array(state, dtype=float)
 
     def remember(self, state, action, reward, next_state, done):
+        """
+        Store a transition in memory for experience replay.
+        """
         self.memory.append((state, action, reward, next_state, done))
 
     def train_long_memory(self):
+        """
+        Train on a batch of experiences from memory (experience replay).
+        """
         if len(self.memory) > BATCH_SIZE:
             mini_sample = random.sample(self.memory, BATCH_SIZE)
         else:
@@ -108,15 +125,23 @@ class SmarterAgent:
         self.trainer.train_step(states, actions, rewards, next_states, dones)
 
     def train_short_memory(self, state, action, reward, next_state, done):
+        """
+        Train on the most recent experience (single step update).
+        """
         self.trainer.train_step(state, action, reward, next_state, done)
 
     def get_action(self, state):
+        """
+        Select an action using epsilon-greedy policy with exponential decay.
+        """
         self.epsilon = max(self.epsilon_min, self.epsilon_start * (self.epsilon_decay ** self.n_games))
         final_move = [0, 0, 0]
         if random.random() < self.epsilon:
+            # Explore: random move
             move = random.randint(0, 2)
             final_move[move] = 1
         else:
+            # Exploit: choose best action from model
             state0 = torch.tensor(state, dtype=torch.float, device=self.device)
             prediction = self.model(state0)
             move = int(torch.argmax(prediction).item())
@@ -124,6 +149,15 @@ class SmarterAgent:
         return final_move
 
     def calculate_enhanced_reward(self, game, reward, done, old_distance_to_food=None):
+        """
+        Enhanced reward shaping to encourage better learning:
+        - Reward for getting closer to food
+        - Penalty for moving away
+        - Small penalty per step
+        - Bonus for being close to food
+        - Penalty for being near wall with long snake
+        - Extra penalty for dying with long snake
+        """
         enhanced_reward = reward
         if not done:
             current_distance = abs(game.food.x - game.head.x) + abs(game.food.y - game.head.y)
@@ -132,7 +166,7 @@ class SmarterAgent:
                     enhanced_reward += 1
                 elif current_distance > old_distance_to_food:
                     enhanced_reward -= 0.5
-            enhanced_reward -= 0.1
+            enhanced_reward -= 0.1  # Small penalty per step
             if current_distance <= 40:
                 enhanced_reward += 0.5
             if len(game.snake) > 10:
@@ -146,6 +180,9 @@ class SmarterAgent:
 
 
 def train():
+    """
+    Main training loop for the smarter agent. Handles user input, training, and saving results.
+    """
     plot_scores = []
     plot_mean_scores = []
     total_score = 0
@@ -191,6 +228,7 @@ def train():
                 print('Game', agent.n_games, 'Score', score, 'Record:', record)
                 csv_rows.append([agent.n_games, score, record])
     finally:
+        # Always save model, plot, and CSV, even if interrupted
         queue.put('DONE')
         agent.model.save(model_save_path)
         write_training_csv(csv_path, model_name, csv_rows)

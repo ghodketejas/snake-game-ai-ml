@@ -17,9 +17,12 @@ class Agent:
     Classic DQN agent for Snake. Handles state representation, memory, and action selection.
     """
     def __init__(self, device=None):
+        """
+        Initialize the agent, neural network, and experience replay memory.
+        """
         self.n_games = 0
         self.epsilon = 0
-        self.gamma = 0.9
+        self.gamma = 0.9  # Discount rate
         self.memory = deque(maxlen=MAX_MEMORY)
         self.device = device if device is not None else get_device()
         self.model = Linear_QNet(11, 256, 3, device=self.device)
@@ -40,22 +43,27 @@ class Agent:
         dir_u = game.direction == Direction.UP
         dir_d = game.direction == Direction.DOWN
         state = [
+            # Danger straight
             (dir_r and game.is_collision(point_r)) or 
             (dir_l and game.is_collision(point_l)) or 
             (dir_u and game.is_collision(point_u)) or 
             (dir_d and game.is_collision(point_d)),
+            # Danger right
             (dir_u and game.is_collision(point_r)) or 
             (dir_d and game.is_collision(point_l)) or 
             (dir_l and game.is_collision(point_u)) or 
             (dir_r and game.is_collision(point_d)),
+            # Danger left
             (dir_d and game.is_collision(point_r)) or 
             (dir_u and game.is_collision(point_l)) or 
             (dir_r and game.is_collision(point_u)) or 
             (dir_l and game.is_collision(point_d)),
+            # Move direction (one-hot)
             dir_l,
             dir_r,
             dir_u,
             dir_d,
+            # Food location relative to head
             game.food.x < game.head.x,
             game.food.x > game.head.x,
             game.food.y < game.head.y,
@@ -90,12 +98,14 @@ class Agent:
         """
         Select an action using epsilon-greedy policy.
         """
-        self.epsilon = 80 - self.n_games
+        self.epsilon = 80 - self.n_games  # Decrease exploration over time
         final_move = [0,0,0]
         if random.randint(0, 200) < self.epsilon:
+            # Explore: random move
             move = random.randint(0, 2)
             final_move[move] = 1
         else:
+            # Exploit: choose best action from model
             state0 = torch.tensor(state, dtype=torch.float, device=self.device)
             prediction = self.model(state0)
             move = torch.argmax(prediction).item()
@@ -155,6 +165,7 @@ def train():
                     queue.put((plot_scores.copy(), plot_mean_scores.copy()))
                 csv_rows.append([agent.n_games, score, record])
     finally:
+        # Always save model, plot, and CSV, even if interrupted
         if visual_debug and queue is not None:
             queue.put('DONE')
         agent.model.save(model_save_path)

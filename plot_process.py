@@ -4,6 +4,9 @@ import os
 import re
 
 def plot_listener(queue, plot_path, visual_debug, model_name):
+    """
+    Listen for score updates from the training process and update/save the plot in real time.
+    """
     if not visual_debug:
         import matplotlib
         matplotlib.use('Agg')
@@ -57,6 +60,7 @@ def plot_listener(queue, plot_path, visual_debug, model_name):
     plt.close(fig)
 
 if __name__ == '__main__':
+    # Example usage for manual testing
     queue = mp.Queue()
     import sys
     plot_path = sys.argv[1] if len(sys.argv) > 1 else 'plot.png'

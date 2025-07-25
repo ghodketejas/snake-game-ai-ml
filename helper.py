@@ -8,6 +8,9 @@ import re
 plt.ion()
 
 def plot(scores, mean_scores):
+    """
+    Plot the training scores and mean scores in real time.
+    """
     plt.clf()
     plt.title('Training...')
     plt.xlabel('Number of Games')
@@ -24,6 +27,10 @@ def plot(scores, mean_scores):
         pass
 
 def ask_visual_debug():
+    """
+    Show a popup to select Debug or Train mode, and prompt for game speed and number of games.
+    Returns: (visual_debug, num_games, speed)
+    """
     result = {'choice': None, 'num_games': 1000, 'speed': 100}
     def set_debug():
         result['choice'] = True
@@ -110,6 +117,10 @@ def ask_visual_debug():
     return result['choice'], result['num_games'], result['speed']
 
 def get_next_save_paths(prefix='model'):
+    """
+    Generate unique file paths for saving model, plot, and CSV results.
+    Returns: (model_name, plot_path, model_save_path, csv_path)
+    """
     model_dir = 'model'
     results_dir = 'results'
     plots_dir = os.path.join(results_dir, 'plots')
@@ -128,10 +139,16 @@ def get_next_save_paths(prefix='model'):
     return model_name, plot_path, model_save_path, csv_path
 
 def get_device():
+    """
+    Return the best available torch device (cuda if available, else cpu).
+    """
     import torch
     return torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 def print_device_info(device):
+    """
+    Print the name of the device (GPU or CPU) being used for training.
+    """
     import torch
     if device.type == 'cuda':
         gpu_name = torch.cuda.get_device_name(device)
@@ -142,6 +159,9 @@ def print_device_info(device):
         print(f"Using device: {device} ({cpu_name})")
 
 def write_training_csv(csv_path, model_name, csv_rows):
+    """
+    Write training results to a CSV file with model name and columns: Game, Score, Record.
+    """
     import csv
     with open(csv_path, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)

@@ -16,6 +16,7 @@ class Direction(Enum):
 
 Point = namedtuple('Point', 'x, y')
 
+# Color definitions
 WHITE = (255, 255, 255)
 RED = (200,0,0)
 BLUE1 = (0, 0, 255)
@@ -32,6 +33,9 @@ class SnakeGameAI:
     Handles the Snake game logic for AI training.
     """
     def __init__(self, delay_per_move=0):
+        """
+        Initialize the game board, snake, and food.
+        """
         self.w = BOARD_WIDTH
         self.h = BOARD_HEIGHT
         self.delay_per_move = delay_per_move
@@ -41,6 +45,9 @@ class SnakeGameAI:
         self.reset()
 
     def reset(self):
+        """
+        Reset the game state to start a new game.
+        """
         self.direction = Direction.RIGHT
         self.head = Point(
             (self.w // BLOCK_SIZE // 2) * BLOCK_SIZE,
@@ -55,6 +62,9 @@ class SnakeGameAI:
         self.frame_iteration = 0
 
     def _place_food(self):
+        """
+        Place food at a random location not occupied by the snake.
+        """
         x = random.randint(0, (self.w-BLOCK_SIZE)//BLOCK_SIZE)*BLOCK_SIZE
         y = random.randint(0, (self.h-BLOCK_SIZE)//BLOCK_SIZE)*BLOCK_SIZE
         x = int(x)
@@ -77,6 +87,7 @@ class SnakeGameAI:
         self.snake.insert(0, self.head)
         reward = 0
         game_over = False
+        # Game over if collision or too many frames without progress
         if self.is_collision() or self.frame_iteration > 100*len(self.snake):
             game_over = True
             reward = -10
@@ -94,6 +105,9 @@ class SnakeGameAI:
         return reward, game_over, self.score
 
     def is_collision(self, pt=None):
+        """
+        Check if the given point (or the snake's head) collides with the wall or itself.
+        """
         if pt is None:
             pt = self.head
         if pt.x > self.w - BLOCK_SIZE or pt.x < 0 or pt.y > self.h - BLOCK_SIZE or pt.y < 0:
@@ -103,6 +117,9 @@ class SnakeGameAI:
         return False
 
     def _update_ui(self):
+        """
+        Draw the game board, snake, and food.
+        """
         self.display.fill(BLACK)
         for pt in self.snake:
             pygame.draw.rect(self.display, BLUE1, pygame.Rect(pt.x, pt.y, BLOCK_SIZE, BLOCK_SIZE))
@@ -114,6 +131,10 @@ class SnakeGameAI:
         pygame.display.flip()
 
     def _move(self, action):
+        """
+        Move the snake in the direction based on the action array.
+        action: [straight, right, left]
+        """
         clock_wise = [Direction.RIGHT, Direction.DOWN, Direction.LEFT, Direction.UP]
         idx = clock_wise.index(self.direction)
         if np.array_equal(action, [1, 0, 0]):
