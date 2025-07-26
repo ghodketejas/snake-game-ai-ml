@@ -1,43 +1,66 @@
 """
-smarter_agent.py
-A smarter Snake agent designed to outperform the baseline agent (agent.py) with improved learning speed and efficiency.
-Now upgraded to Double DQN with a target network, soft updates, vectorized loss, and proper epsilon decay.
+Enhanced DQN agent for Snake Game AI with advanced features.
+
+This module implements a smarter DQN agent with Double DQN architecture,
+enhanced state representation, improved reward shaping, and deeper neural
+networks for better learning performance.
 """
 
 import torch
 import random
 import numpy as np
 from collections import deque
-from game import SnakeGameAI, Direction, Point
+from game import SnakeGameAI, Direction, Point, BLOCK_SIZE
 from smarter_model import DeeperQNet, SmarterQTrainer
-from helper import plot, ask_visual_debug, get_next_save_paths, get_device, print_device_info, write_training_csv, ask_visual_debug_auto
+from helper import (
+    plot, ask_visual_debug, get_next_save_paths, get_device, 
+    print_device_info, write_training_csv, ask_visual_debug_auto, ask_show_pygame
+)
 import multiprocessing as mp
-import os
-import re
 
+# Training hyperparameters
 MAX_MEMORY = 100_000
-BATCH_SIZE = 2048        # Safer than 4096 on many GPUs; still large enough
-LR = 0.0005              # A bit more conservative than 0.01 for stability
+BATCH_SIZE = 256
+LR = 0.0001
 
-TARGET_UPDATE_TAU = 0.01 # Soft update factor
-TARGET_HARD_EVERY = 0    # Set >0 to also hard update every N games (optional)
+# Target network update parameters
+TARGET_UPDATE_TAU = 0.001  # Soft update factor (per episode)
+TARGET_HARD_EVERY = 0      # Set >0 to also hard update every N games (optional)
+
+# Reward shaping constants
+FOOD_PROXIMITY_THRESHOLD = 40  # Distance threshold for food proximity bonus
+WALL_DANGER_THRESHOLD = 40     # Distance threshold for wall danger penalty
+
 
 class SmarterAgent:
     """
-    Smarter Double-DQN agent for Snake. Uses enhanced state, reward shaping, a deeper neural network,
-    and target network for stability.
+    Enhanced Double-DQN agent for Snake game training.
+    
+    Features include:
+    - Double DQN with target network for stability
+    - Enhanced state representation with 21 features
+    - Improved reward shaping
+    - Deeper neural network architecture
+    - Proper epsilon decay strategy
     """
+    
     def __init__(self,
                  epsilon_start=1.0,
                  epsilon_min=0.02,
-                 epsilon_decay=0.9995,
+                 epsilon_decay=0.995,
                  lr=LR):
         """
-        Initialize the smarter agent, deeper neural network, and experience replay memory.
+        Initialize the smarter agent with enhanced components.
+        
+        Args:
+            epsilon_start: Initial exploration rate
+            epsilon_min: Minimum exploration rate
+            epsilon_decay: Decay factor for exploration
+            lr: Learning rate
         """
         self.n_games = 0
 
-        # Epsilon-greedy params
+        # Epsilon-greedy parameters
         self.epsilon_start = epsilon_start
         self.epsilon_min = epsilon_min
         self.epsilon_decay = epsilon_decay
@@ -48,34 +71,46 @@ class SmarterAgent:
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-        # Online & Target networks
-        self.model = DeeperQNet(21, [512, 256, 128], 3, device=self.device, dropout_rate=0.2)
-        self.target_model = DeeperQNet(21, [512, 256, 128], 3, device=self.device, dropout_rate=0.2)
+        # Online and target networks
+        self.model = DeeperQNet(21, [512, 256, 128], 3, device=self.device, dropout_rate=0.0)
+        self.target_model = DeeperQNet(21, [512, 256, 128], 3, device=self.device, dropout_rate=0.0)
         self.target_model.load_state_dict(self.model.state_dict())
         self.target_model.eval()
 
         self.trainer = SmarterQTrainer(
-            self.model, self.target_model, lr=lr, gamma=self.gamma, device=self.device, clip_grad_norm=1.0
+            self.model, self.target_model, lr=lr, gamma=self.gamma, 
+            device=self.device, clip_grad_norm=0.5
         )
-
-    # ---------- State & Reward ----------
 
     def get_state(self, game):
         """
-        Returns an enhanced state vector for the smarter agent.
-        Features include distances to walls/food, food alignment, snake length, and strategic features.
+        Extract enhanced state representation with 21 features.
+        
+        Features include:
+        - Danger detection in three directions
+        - Current movement direction
+        - Food location and distance
+        - Wall distances
+        - Snake length and strategic features
+        
+        Args:
+            game: SnakeGameAI instance representing current game state
+            
+        Returns:
+            numpy.ndarray: 21-dimensional state vector
         """
         head = game.snake[0]
-        point_l = Point(head.x - 20, head.y)
-        point_r = Point(head.x + 20, head.y)
-        point_u = Point(head.x, head.y - 20)
-        point_d = Point(head.x, head.y + 20)
+        point_l = Point(head.x - BLOCK_SIZE, head.y)
+        point_r = Point(head.x + BLOCK_SIZE, head.y)
+        point_u = Point(head.x, head.y - BLOCK_SIZE)
+        point_d = Point(head.x, head.y + BLOCK_SIZE)
 
         dir_l = game.direction == Direction.LEFT
         dir_r = game.direction == Direction.RIGHT
         dir_u = game.direction == Direction.UP
         dir_d = game.direction == Direction.DOWN
 
+        # Distance calculations
         dist_to_left_wall = head.x
         dist_to_right_wall = game.w - head.x
         dist_to_top_wall = head.y
@@ -126,20 +161,31 @@ class SmarterAgent:
             food_same_row,
             food_same_col,
             snake_length / 100.0,
-            dist_to_food < 40,
+            dist_to_food < FOOD_PROXIMITY_THRESHOLD,
             len(game.snake) > 10
         ]
         return np.array(state, dtype=float)
 
     def calculate_enhanced_reward(self, game, base_reward, done, old_distance_to_food=None):
         """
-        Enhanced reward shaping to encourage better learning:
+        Calculate enhanced reward with shaping for better learning.
+        
+        Reward shaping includes:
         - Reward for getting closer to food
-        - Penalty for moving away
-        - Small penalty per step
+        - Penalty for moving away from food
+        - Small step penalty
         - Bonus for being close to food
         - Penalty for being near wall with long snake
         - Extra penalty for dying with long snake
+        
+        Args:
+            game: Current game state
+            base_reward: Base reward from game
+            done: Whether episode ended
+            old_distance_to_food: Previous distance to food
+            
+        Returns:
+            float: Enhanced reward value
         """
         enhanced_reward = base_reward
 
@@ -152,9 +198,9 @@ class SmarterAgent:
                 elif current_distance > old_distance_to_food:
                     enhanced_reward -= 0.5
 
-            enhanced_reward -= 0.1  # small step penalty
+            enhanced_reward -= 0.01  # Small step penalty
 
-            if current_distance <= 40:
+            if current_distance <= FOOD_PROXIMITY_THRESHOLD:
                 enhanced_reward += 0.5
 
             if len(game.snake) > 10:
@@ -164,7 +210,7 @@ class SmarterAgent:
                     game.w - game.head.x,
                     game.h - game.head.y
                 )
-                if wall_distance <= 40:
+                if wall_distance <= WALL_DANGER_THRESHOLD:
                     enhanced_reward -= 0.3
         else:
             # Stronger penalty for dying
@@ -174,17 +220,25 @@ class SmarterAgent:
 
         return enhanced_reward
 
-    # ---------- Memory / Training ----------
-
     def remember(self, state, action, reward, next_state, done):
         """
-        Store a transition in memory for experience replay.
+        Store a transition in experience replay memory.
+        
+        Args:
+            state: Current state vector
+            action: Action taken (one-hot encoded)
+            reward: Reward received
+            next_state: Next state vector
+            done: Whether episode ended
         """
         self.memory.append((state, action, reward, next_state, done))
 
     def train_long_memory(self):
         """
         Train on a batch of experiences from memory (experience replay).
+        
+        Samples BATCH_SIZE experiences and performs training step.
+        Also performs soft target network update.
         """
         if len(self.memory) > BATCH_SIZE:
             mini_sample = random.sample(self.memory, BATCH_SIZE)
@@ -194,29 +248,40 @@ class SmarterAgent:
         states, actions, rewards, next_states, dones = zip(*mini_sample)
         self.trainer.train_step(states, actions, rewards, next_states, dones)
 
-        # Soft update target (every long memory step)
+        # Soft update target network
         self.trainer.soft_update_target(TARGET_UPDATE_TAU)
 
     def train_short_memory(self, state, action, reward, next_state, done):
         """
         Train on the most recent experience (single step update).
+        
+        Args:
+            state: Current state vector
+            action: Action taken (one-hot encoded)
+            reward: Reward received
+            next_state: Next state vector
+            done: Whether episode ended
         """
         self.trainer.train_step(state, action, reward, next_state, done)
-        # Soft update after every short step too (cheap, stabilizes)
-        self.trainer.soft_update_target(TARGET_UPDATE_TAU)
-
-    # ---------- Action Selection ----------
 
     def _update_epsilon(self):
+        """Update epsilon using exponential decay."""
         self.epsilon = max(self.epsilon_min, self.epsilon * self.epsilon_decay)
 
     def get_action(self, state):
         """
         Select an action using epsilon-greedy policy with exponential decay.
+        
+        Epsilon decays once per episode, not per step.
+        
+        Args:
+            state: Current state vector
+            
+        Returns:
+            list: One-hot encoded action [straight, right, left]
         """
-        self._update_epsilon()
-
         final_move = [0, 0, 0]
+        
         if random.random() < self.epsilon:
             move = random.randint(0, 2)
             final_move[move] = 1
@@ -230,6 +295,26 @@ class SmarterAgent:
 
 
 def train(visual_debug=None, num_games=None, speed=None, custom_name=None):
+    """
+    Main training loop for the smarter DQN agent.
+    
+    Handles user input, training execution, and result saving. Supports
+    both interactive and automated training modes with enhanced features.
+    
+    Args:
+        visual_debug: Whether to show training visualization
+        num_games: Number of games to train for
+        speed: Game speed (FPS)
+        custom_name: Custom prefix for output files
+    """
+    import os
+    
+    # Configure Pygame display based on user preference
+    show_pygame = ask_show_pygame()
+    if not show_pygame:
+        os.environ["SDL_VIDEODRIVER"] = "dummy"
+        speed = 500  # Maximum speed for headless training
+
     import pygame
     pygame.init()
 
@@ -241,7 +326,7 @@ def train(visual_debug=None, num_games=None, speed=None, custom_name=None):
     agent = SmarterAgent()
     model_name, plot_path, model_save_path, csv_path = get_next_save_paths('smarter_model', custom_name=custom_name)
 
-    # Ask or auto-decide debug parameters (keep your original behavior)
+    # Get training parameters
     if visual_debug is False:
         visual_debug, num_games, speed = ask_visual_debug_auto(visual_debug, num_games, speed)
     elif visual_debug is not None and num_games is not None and speed is not None:
@@ -249,22 +334,26 @@ def train(visual_debug=None, num_games=None, speed=None, custom_name=None):
     else:
         visual_debug, num_games, speed = ask_visual_debug()
 
-    DELAY_PER_MOVE = 0.05 if visual_debug else 0
+    # Configure game speed
+    import game as _game_module
+    _game_module.SPEED = speed
+
+    DELAY_PER_MOVE = 0
     game = SnakeGameAI(delay_per_move=DELAY_PER_MOVE)
 
-    if hasattr(game, "clock"):
+    # Initialize clock
+    if game.clock is not None:
         game.clock.tick(speed)
 
     print_device_info(agent.device)
 
     n_games = 0
     csv_rows = []
-
     queue = None
     plotter = None
-    import importlib
 
     try:
+        # Initialize plotting if in debug mode
         if visual_debug:
             import plot_process
             queue = mp.Queue()
@@ -272,29 +361,29 @@ def train(visual_debug=None, num_games=None, speed=None, custom_name=None):
             plotter.start()
             queue.put(([], []))
 
+        # Main training loop
         while n_games < num_games:
-            # ---- one game ----
             state_old = agent.get_state(game)
 
-            # (for shaped reward)
+            # Calculate distance for reward shaping
             old_distance_to_food = abs(game.food.x - game.head.x) + abs(game.food.y - game.head.y)
 
             final_move = agent.get_action(state_old)
             base_reward, done, score = game.play_step(final_move)
 
-            # Classic base rewards come from game; we pass them through the shaper
+            # Apply enhanced reward shaping
             enhanced_reward = agent.calculate_enhanced_reward(
                 game, base_reward, done, old_distance_to_food=old_distance_to_food
             )
 
             state_new = agent.get_state(game)
 
-            # Train step
+            # Training step
             agent.train_short_memory(state_old, final_move, enhanced_reward, state_new, done)
             agent.remember(state_old, final_move, enhanced_reward, state_new, done)
 
             if done:
-                # Game over
+                # Game over - perform episode updates
                 game.reset()
                 agent.n_games += 1
                 n_games += 1
@@ -302,9 +391,13 @@ def train(visual_debug=None, num_games=None, speed=None, custom_name=None):
                 # Long memory training
                 agent.train_long_memory()
 
-                # Optional periodic *hard* sync (in addition to soft updates)
+                # Optional periodic hard target sync
                 if TARGET_HARD_EVERY > 0 and agent.n_games % TARGET_HARD_EVERY == 0:
                     agent.trainer.hard_update_target()
+
+                # Episode-level updates
+                agent._update_epsilon()  # Decay exploration once per game
+                agent.trainer.soft_update_target(TARGET_UPDATE_TAU)  # Gentle target sync
 
                 if score > record:
                     record = score
@@ -322,7 +415,7 @@ def train(visual_debug=None, num_games=None, speed=None, custom_name=None):
                 csv_rows.append([agent.n_games, score, record])
 
     finally:
-        # Always save model, plot, and CSV, even if interrupted
+        # Cleanup and save results
         if visual_debug and queue is not None:
             queue.put('DONE')
 

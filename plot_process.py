@@ -1,27 +1,42 @@
 """
-plot_process.py
-Handles multiprocessing-based real-time plotting for Snake Game AI training.
+Multiprocessing-based real-time plotting for Snake Game AI training.
+
+This module provides a separate process for handling real-time plotting
+during training to avoid blocking the main training loop and ensure
+smooth visualization.
 """
+
 import matplotlib.pyplot as plt
 import multiprocessing as mp
-import os
-import re
+
 
 def plot_listener(queue, plot_path, visual_debug, model_name):
     """
-    Listen for score updates from the training process and update/save the plot in real time.
+    Listen for score updates and update/save plots in real-time.
+    
+    Runs in a separate process to handle plotting without blocking
+    the main training loop.
+    
+    Args:
+        queue: Multiprocessing queue for receiving score data
+        plot_path: Path to save the final plot
+        visual_debug: Whether to show live plot window
+        model_name: Name of the model for plot title
     """
     if not visual_debug:
         import matplotlib
         matplotlib.use('Agg')
+        
     scores = []
     mean_scores = []
     fig, ax = plt.subplots()
+    
     # Print backend for debugging
     print(f"Matplotlib backend: {plt.get_backend()}")
+    
     if visual_debug:
         plt.ion()
-        # In debug mode, set window always on top for Tkinter or Qt
+        # Set window to stay on top for better visibility
         try:
             fig_manager = plt.get_current_fig_manager()
             # For Qt backend
@@ -34,18 +49,19 @@ def plot_listener(queue, plot_path, visual_debug, model_name):
                 fig_manager.window.wm_attributes('-topmost', 1)
         except Exception as e:
             print(f"Window stacking control not supported: {e}")
-    # Use model_name for chart title
+            
     run_label = model_name
+    
     while True:
         data = queue.get()
         if data == 'DONE':
-            # Set title to just the model name and redraw
+            # Finalize plot and save
             ax.set_title(run_label)
             if visual_debug:
                 plt.draw()
-            # Save final plot
             fig.savefig(plot_path)
             break
+            
         scores, mean_scores = data
         ax.clear()
         ax.set_title(f'Training Progress for {run_label}')
@@ -54,14 +70,18 @@ def plot_listener(queue, plot_path, visual_debug, model_name):
         ax.plot(scores)
         ax.plot(mean_scores)
         ax.set_ylim(bottom=0)
+        
         if scores:
-            ax.text(len(scores)-1, scores[-1], str(scores[-1]))
+            ax.text(len(scores) - 1, scores[-1], str(scores[-1]))
         if mean_scores:
-            ax.text(len(mean_scores)-1, mean_scores[-1], str(mean_scores[-1]))
+            ax.text(len(mean_scores) - 1, mean_scores[-1], str(mean_scores[-1]))
+            
         if visual_debug:
             plt.draw()
             plt.pause(0.001)
+            
     plt.close(fig)
+
 
 if __name__ == '__main__':
     # Example usage for manual testing
